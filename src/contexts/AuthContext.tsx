@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut as firebaseSignOut, getRedirectResult } from 'firebase/auth';
 import { auth, signInWithGoogle } from '../firebase';
 
 interface AuthContextType {
@@ -16,6 +16,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Handle redirect result for native Android/Capacitor Google Sign In
+    getRedirectResult(auth).catch(e => console.error("Redirect sign in error", e));
+
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);

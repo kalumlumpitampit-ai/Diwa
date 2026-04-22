@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { getFirestore, doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -18,7 +18,13 @@ export async function testConnection() {
   }
 }
 
-export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
+export const signInWithGoogle = () => {
+  // Capacitor injects window.Capacitor when running in native environments (like Android APK)
+  if (typeof window !== 'undefined' && (window as any).Capacitor && (window as any).Capacitor.isNative) {
+    return signInWithRedirect(auth, googleProvider);
+  }
+  return signInWithPopup(auth, googleProvider);
+};
 
 export interface FirestoreErrorInfo {
   error: string;
