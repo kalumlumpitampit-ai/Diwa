@@ -1,11 +1,18 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, browserLocalPersistence, setPersistence } from 'firebase/auth';
 import { getFirestore, doc, getDocFromCache, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
 export const auth = getAuth(app);
+
+// On native devices, enforce local persistence to avoid session drops during browser hopping
+if (typeof window !== 'undefined' && (window as any).Capacitor && (window as any).Capacitor.isNative) {
+  setPersistence(auth, browserLocalPersistence)
+    .catch((err) => console.error("Could not set local persistence", err));
+}
+
 export const googleProvider = new GoogleAuthProvider();
 
 export async function testConnection() {
