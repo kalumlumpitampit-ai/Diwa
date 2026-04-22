@@ -33,6 +33,10 @@ jobs:
     - name: Sync Capacitor Android Project
       run: npx cap sync android
 
+    - name: Restore Corrupt Gradle Wrapper
+      working-directory: ./android
+      run: gradle wrapper
+
     - name: Build Android APK (Debug)
       working-directory: ./android
       run: chmod +x ./gradlew && ./gradlew assembleDebug
