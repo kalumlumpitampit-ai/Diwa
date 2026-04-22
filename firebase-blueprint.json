@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "Unit": {
+      "title": "Unit Definition",
+      "description": "Represents a major term unit in the curriculum.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "term": { "type": "string", "enum": ["First Term", "Second Term", "Third Term"] },
+        "description": { "type": "string" },
+        "lessonIds": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "term", "lessonIds"]
+    },
+    "Lesson": {
+      "title": "Lesson Definition",
+      "description": "A specific topic within a unit.",
+      "type": "object",
+      "properties": {
+        "unitId": { "type": "string" },
+        "title": { "type": "string" },
+        "objectives": { "type": "array", "items": { "type": "string" } },
+        "vocabulary": { "type": "array", "items": { "type": "string" } },
+        "discussionText": { "type": "string" },
+        "prompts": { "type": "array", "items": { "type": "string" } },
+        "activities": { "type": "array", "items": { "type": "string" } },
+        "teacherGuide": { "type": "string" },
+        "culturalContext": { "type": "string" }
+      },
+      "required": ["unitId", "title", "objectives", "discussionText"]
+    },
+    "Assignment": {
+      "title": "Assignment Definition",
+      "description": "Tasks given to students per lesson or unit.",
+      "type": "object",
+      "properties": {
+        "lessonId": { "type": "string" },
+        "title": { "type": "string" },
+        "instructions": { "type": "string" },
+        "points": { "type": "number" }
+      },
+      "required": ["lessonId", "title", "instructions", "points"]
+    },
+    "Submission": {
+      "title": "Assignment Submission",
+      "description": "A student's work submitted for an assignment.",
+      "type": "object",
+      "properties": {
+        "assignmentId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "content": { "type": "string" },
+        "score": { "type": "number" },
+        "feedback": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "graded"] }
+      },
+      "required": ["assignmentId", "studentId", "content", "status"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Role and metadata for a user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "role": { "type": "string", "enum": ["teacher", "student"] },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["uid", "role", "displayName", "email"]
+    },
+    "Message": {
+      "title": "Communication",
+      "description": "Simple message for student-teacher-parent communication.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "object" }
+      },
+      "required": ["senderId", "senderName", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/profiles/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with role information."
+    },
+    "/submissions/{submissionId}": {
+      "schema": "Submission",
+      "description": "Student assignment submissions."
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Platform messaging."
+    }
+  }
+}

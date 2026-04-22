@@ -1,0 +1,176 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. Primitive Definitions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isVerified() {
+      return request.auth.token.email_verified == true;
+    }
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'kalumlumpitampit@gmail.com' ||
+        request.auth.token.email.endsWith('@deped.gov.ph') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'kalumlumpitampit@gmail.com' ||
+        request.auth.token.email.endsWith('@deped.gov.ph')
+      );
+    }
+    // Context-aware Teacher check (only for single doc access)
+    function isTeacher() {
+      return isSuperAdmin() || (isSignedIn() && (
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'teacher' ||
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin'
+      ));
+    }
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+
+    // 2. User Profiles
+    function isValidProfile(data) {
+      return data.uid == request.auth.uid &&
+             data.role in ['teacher', 'student', 'admin'] &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 100;
+    }
+
+    match /profiles/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isTeacher();
+      allow list: if isSignedIn() && resource.data.role == 'student';
+      allow create: if isOwner(userId) && isValidProfile(incoming());
+      allow update: if isOwner(userId) && isValidProfile(incoming()) && (
+        (incoming().role == existing().role || (incoming().role == 'teacher' && isSuperAdmin()))
+      ) || (isTeacher() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName']) && isValidId(userId));
+    }
+
+    // 3. Assignments
+    function isValidAssignment(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.instructions is string && data.instructions.size() <= 5000 &&
+             data.points is number && data.points >= 0 &&
+             data.dueDate is string &&
+             data.createdAt is string &&
+             data.status == 'active' &&
+             (!('lessonId' in data) || data.lessonId is string);
+    }
+
+    match /assignments/{assignmentId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isTeacher() && isValidAssignment(incoming());
+      allow update, delete: if isTeacher();
+    }
+
+    // 4. Broadcasts
+    function isValidBroadcast(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.message is string && data.message.size() <= 2000 &&
+             data.authorName is string &&
+             data.createdAt is string &&
+             data.priority in ['normal', 'high'] &&
+             data.visibility == 'public';
+    }
+
+    match /broadcasts/{broadcastId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isTeacher() && isValidBroadcast(incoming());
+      allow update, delete: if isTeacher();
+    }
+
+    // 5. Submissions
+    function isValidSubmission(data) {
+      return data.assignmentId is string &&
+             data.studentId == request.auth.uid &&
+             data.studentName is string &&
+             (data.content is string || data.content is map) && 
+             data.status in ['pending', 'returned'];
+    }
+
+    match /submissions/{submissionId} {
+      allow list: if isTeacher();
+      allow list: if isSignedIn() && resource.data.studentId == request.auth.uid;
+      
+      allow get: if isSignedIn() && (
+        resource.data.studentId == request.auth.uid || isTeacher()
+      );
+
+      allow create: if isSignedIn() && isVerified() && isValidSubmission(incoming());
+
+      allow update: if (isTeacher() && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['score', 'feedback', 'status']) &&
+                    incoming().status in ['graded', 'returned']) ||
+                    (isSignedIn() && resource.data.studentId == request.auth.uid && 
+                     existing().status == 'returned' &&
+                     incoming().diff(existing()).affectedKeys().hasOnly(['content', 'status', 'timestamp']) &&
+                     incoming().status == 'pending');
+    }
+
+    // 6. Resources
+    function isValidResource(data) {
+      return data.title is string && data.url is string && 
+             data.description is string && data.createdAt is string;
+    }
+
+    match /resources/{resourceId} {
+      allow read: if isSignedIn();
+      allow write: if isTeacher() && isValidResource(incoming());
+    }
+
+    // 7. Notes
+    function isValidNote(data) {
+      return data.userId == request.auth.uid && 
+             data.text is string && data.text.size() <= 5000;
+    }
+
+    match /notes/{noteId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidNote(incoming());
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // 8. Messages
+    function isValidMessage(data) {
+      return data.senderId == request.auth.uid &&
+             data.senderName is string &&
+             data.text is string && data.text.size() <= 1000 &&
+             data.timestamp == request.time &&
+             data.channel == 'academy';
+    }
+
+    match /messages/{messageId} {
+      allow list: if isSignedIn() && resource.data.channel == 'academy';
+      allow get: if isSignedIn();
+      allow create: if isSignedIn() && isVerified() && isValidMessage(incoming());
+      allow update, delete: if isTeacher();
+    }
+
+    // 5. Legacy Progress (If needed for compatibility)
+    match /progress/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}
